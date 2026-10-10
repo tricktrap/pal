@@ -4,7 +4,7 @@
   "description": "",
   "private": true,
   "main": "dist/main.js",
-  "type": "commonjs",
+  "type": "module",
   "engines": {
     "node": ">=20"
   },
@@ -28,5 +28,10 @@
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "^1.1.0",
+    "@earendil-works/pi-ai": "^1.1.0",
+    "@earendil-works/pi-durable": "^1.1.0"
   }
 }
