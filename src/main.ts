@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { envApiKeyAuth, type Api, type ApiKeyAuth, type CreateProviderOptions, type ProviderAuth, type Model } from "@earendil-works/pi-ai";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
+import { getEnvApiKey, openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import { createModels, createProvider } from "@earendil-works/pi-ai/models"
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { createRegistry, Harness } from "@earendil-works/pi-durable";
@@ -88,8 +88,14 @@ async function fetchModels(url: string, token?: string): Promise<Model<"openai-c
 const provider = createProvider({
   id: PROVIDER_PREFIX,
   auth: {
-    apiKey: { name: "LM Studio", resolve: async () => ({ auth: {} }) }
+    // apiKey: envApiKeyAuth("LM Studio", ["LMSTUDIO_API_KEY"]),
+    apiKey: {
+      name: "LM Studio", resolve: async () => ({
+        auth: {
+          apiKey: "none",
+    } }) }
   },
+  baseUrl: DEFAULT_LM_STUDIO_URL,
   models: await fetchModels(DEFAULT_LM_STUDIO_URL, "bleh"),
   api: openAICompletionsApi(),
 });
@@ -116,6 +122,9 @@ for (const model of models.getAllModels()) {
   console.log(`Model: ${model.id}`);
 }
 
+for (const model of provider.getModels()) {
+  console.log(`Model: ${model.id}`);
+}
 
 // The root conversation: created on first use, and the same one after every
 // restart.
@@ -132,4 +141,18 @@ const job = {
   requestId: "job-1"
 } as const;
 
-await root.submit(job, context);
+const settled = (await root.submit(job, context)).wait(context);
+
+settled.then((result) => {
+  switch (result.status) {
+    case "unanswered":
+      console.log(`No answer. ${result.reason}, ${result.detail}`);
+      break;
+    case "done":
+      console.log(`Answer: ${result.answer}`)
+      break;
+  }
+  console.log(`Result: ${result}`);
+}).catch((err) => {
+  console.log(`Error: ${err}`);
+})
