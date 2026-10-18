@@ -3,7 +3,7 @@ import { envApiKeyAuth, type Api, type ApiKeyAuth, type CreateProviderOptions, t
 import { getEnvApiKey, openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import { createModels, createProvider } from "@earendil-works/pi-ai/models"
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
-import { createRegistry, Harness } from "@earendil-works/pi-durable";
+import { AssistantEntry, createRegistry, Harness } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
@@ -130,29 +130,17 @@ for (const model of provider.getModels()) {
 // restart.
 const root = await harness.root(context, {
   agent: {
-    model: { provider: PROVIDER_PREFIX, modelId: "meta/muse-glimmer" },
+    model: { provider: PROVIDER_PREFIX, modelId: "qwen/qwen3.8-27b" },
     cwd: import.meta.dirname,
   }
 });
 
-const job = {
-  type: "input",
-  content: "Determine the language this project is written in",
-  requestId: "job-1"
-} as const;
+const submission = await root.submit({ type: "input", content: "Determine the language this project is written in" }, context);
+const settled = await submission.wait(context);
 
-const settled = (await root.submit(job, context)).wait(context);
+if (settled.status === "done" && settled.type === "input") {
+  const answer = await root.commit((tx) => tx.entry(AssistantEntry, settled.answer), context);
+  console.log(answer?.model?.[0]);
+}
 
-settled.then((result) => {
-  switch (result.status) {
-    case "unanswered":
-      console.log(`No answer. ${result.reason}, ${result.detail}`);
-      break;
-    case "done":
-      console.log(`Answer: ${result.answer}`)
-      break;
-  }
-  console.log(`Result: ${result}`);
-}).catch((err) => {
-  console.log(`Error: ${err}`);
-})
+await harness.close(context);
