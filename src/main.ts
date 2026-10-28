@@ -3,21 +3,16 @@ import { AssistantEntry } from "@earendil-works/pi-durable";
 
 import { initializeHarness } from "./runtime.js";
 
-const DEFAULT_PROMPT = "Determine the language this project is written in";
-function getPromptFromArgs(): string {
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--prompt' || argv[i] === '-p') {
-      return argv[i + 1] ?? DEFAULT_PROMPT;
-    }
-    if (argv[i].startsWith('--prompt=')) {
-      return argv[i].slice('--prompt='.length);
-    }
-  }
-  return DEFAULT_PROMPT;
-}
+import { parseArgs } from 'node:util';
 
-const promptContent = getPromptFromArgs();
+const { values, positionals } = parseArgs({
+  options: {
+    prompt: { type: 'string', short: 'p', default: 'Determine the language this project is written in' },
+    verbose: { type: 'boolean', short: 'v', default: false }
+  }, allowPositionals: true
+});
+
+const promptContent = values['prompt'];
 
 const context = BACKGROUND_CONTEXT;
 const harness = await initializeHarness(context);
