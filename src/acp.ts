@@ -1,7 +1,8 @@
-import * as acp from "@agentclientprotocol/sdk/experimental/v2/unstable"
+import * as acp from "@agentclientprotocol/sdk"
+import type { SessionUpdate } from "@agentclientprotocol/sdk"
 import type { Context } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import type { AssistantMessage, ImageContent, TextContent, ThinkingContent, ToolCall } from "@earendil-works/pi-ai";
 import type { Conversation, Harness, Submission, UserInput } from "@earendil-works/pi-durable";
 import { AssistantEntry } from "@earendil-works/pi-durable";
 
@@ -11,6 +12,13 @@ interface AgentSession {
   pendingPrompt: AbortController | null;
   conversation: Conversation;
 }
+
+type AssistantContent =
+  | string
+  | TextContent[]
+  | (TextContent | ImageContent)[]
+  | (TextContent | ThinkingContent | ToolCall)[]
+  | undefined;
 
 export class AcpAgent {
   private sessions: Map<string, AgentSession>;
@@ -26,9 +34,10 @@ export class AcpAgent {
   async initialize(_params: acp.InitializeRequest): Promise<acp.InitializeResponse> {
     return {
       protocolVersion: acp.PROTOCOL_VERSION,
-      capabilities: {
+      agentCapabilities: {
+
       },
-      info: {
+      agentInfo: {
         name: "PAL",
         version: "0.1.0"
       }
@@ -78,28 +87,12 @@ export class AcpAgent {
         content: params.prompt.map((cb) => this.toInternalContentBlock(cb))
       }, this.context);
 
-      submission.wait(this.context).then((response) => {
-        if (response.type === "input" && response.status === "done") {
-          session.conversation.commit((tx) => tx.entry(AssistantEntry, response.answer), this.context).then((answer) => {
-            cx.notify(acp.CLIENT_METHODS.session_update, {
-              sessionId: params.sessionId,
-              update: {
-                sessionUpdate: "agent_message",
-                messageId: answer?.id.toString(),
-              }
-            }).catch((err) => {
-              console.error(err);
-            })
-          }).catch((err) => {
-            console.error(err);
-          })
-        }
-      }).catch((err) => {
-      })
+      const settled = await submission.wait(this.context);
+      if (settled.type === "input" && settled.status === "done") {
+        const answer = await session.conversation.commit((tx) => tx.entry(AssistantEntry, settled.answer), this.context);
 
-      submissionId = submission.id;
-
-
+        await this.handleModelResponse(cx, answer?.model?.[0]?.content);
+      }
     } catch (err) {
       if (session.pendingPrompt.signal.aborted) {
         // do something special here to mark a timeout
@@ -111,21 +104,120 @@ export class AcpAgent {
     session.pendingPrompt = null;
 
     return {
-      messageId: submissionId.toString()
+      stopReason: "end_turn"
     }
   }
 
-  async cancelSession(params: acp.CancelSessionNotification): Promise<void> {
+  async cancelSession(params: acp.CancelNotification): Promise<void> {
     this.sessions.get(params.sessionId)?.pendingPrompt?.abort();
   }
 
+  private async handleModelResponse(cx: acp.AgentContext, content: AssistantContent): Promise<void> {
+    if (content === undefined) {
+      return this.handleUndefined(cx);
+    }
+    if (typeof content === "string") {
+      return this.handleString(cx, content);
+    }
+
+    for (const block of content) {
+      switch (block.type) {
+        case "text": return this.handleText(cx, block);
+        case "image": return this.handleImage(cx, block);
+        case "thinking": return this.handleThinking(cx, block);
+        case "toolCall": return this.handleToolCall(cx, block);
+      }
+    }
+  }
+
+  private async handleUndefined(cx: acp.AgentContext): Promise<void> {
+    // meh
+  }
+
+  private async handleString(cx: acp.AgentContext, content: string): Promise<void> {
+    return;
+  }
+
+  private async handleText(cx: acp.AgentContext, content: TextContent): Promise<void> {
+    cx.notify(acp.methods.client.session.update, {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content:
+      }
+    });
+    return;
+  }
+
+  private async handleImage(cx: acp.AgentContext, content: ImageContent): Promise<void> {
+    return;
+  }
+
+  private async handleThinking(cx: acp.AgentContext, content: ThinkingContent): Promise<void> {
+    return;
+  }
+
+  private async handleToolCall(cx: acp.AgentContext, content: ToolCall): Promise<void> {
+    return;
+  }
+
+
+
+  private toAcpMessage(messages: AssistantMessage[]): SessionUpdate {
+    return {
+      sessionUpdate: "agent_message_chunk",
+      content: messages?.[0]?.content.map((content) => { return this.toAcpContentBlock(content) })
+    }
+  }
+
+  private toAcpContentBlock(content:
+    string | (TextContent | ImageContent)[] | TextContent[] | (TextContent | ThinkingContent | ToolCall)[] | undefined): acp.ContentBlock {
+    if (!content) {
+      return {
+        type: "text",
+        text: "undefined output"
+      };
+    }
+
+    if (typeof content === "string") {
+      return {
+        type: "text",
+        text: content
+      };
+    }
+
+
+    switch (content.type) {
+      case "text":
+        return {
+          type: "text",
+          text: content.text
+        }
+      case "thinking":
+        return {
+          type: "text",
+          text: content.thinking
+        }
+      case "toolCall":
+        return {
+          type: "text",
+          text: `tool call: ${content.name}`
+        }
+      default:
+        return {
+          type: "text",
+          text: "unknown content"
+        }
+    }
+  }
+
   private toInternalContentBlock(cb: acp.ContentBlock): TextContent | ImageContent {
-    if (acp.ContentBlock.isText(cb)) {
+    if (cb.type === "text") {
       return {
         type: "text",
         text: cb.text,
       }
-    } else if (acp.ContentBlock.isImage(cb)) {
+    } else if (cb.type === "image") {
       return {
         type: "image",
         data: cb.data,
