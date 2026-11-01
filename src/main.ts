@@ -4,7 +4,8 @@ import { AssistantEntry } from "@earendil-works/pi-durable";
 import { initializeHarness } from "./runtime.js";
 
 import { parseArgs } from 'node:util';
-import { AcpAgent, attachAcpAgent } from "./acp.js";
+import { attachAcpAgent } from "./acp.js";
+import { exit } from "node:process";
 
 const { values, positionals } = parseArgs({
   options: {
@@ -18,25 +19,23 @@ const context = BACKGROUND_CONTEXT;
 const harness = await initializeHarness(context);
 
 if (values['acp']) {
-  console.log("Initializing in ACP mode");
+  console.error("Initializing in ACP mode");
   attachAcpAgent(harness, context);
-}
+} else if (values['prompt']) {
+  const root = await harness.root(context, {
+    agent: {
+      model: { provider: "lmstudio", modelId: "qwen/qwen3.8-27b" },
+      cwd: import.meta.dirname,
+    }
+  });
+  const promptContent = values['prompt'];
+  const submission = await root.submit({ type: "input", content: promptContent }, context);
+  const settled = await submission.wait(context);
 
-// The root conversation: created on first use, and the same one after every
-// restart.
-const root = await harness.root(context, {
-  agent: {
-    model: { provider: "lmstudio", modelId: "qwen/qwen3.8-27b" },
-    cwd: import.meta.dirname,
+  if (settled.status === "done" && settled.type === "input") {
+    const answer = await root.commit((tx) => tx.entry(AssistantEntry, settled.answer), context);
+    console.log(answer?.model?.[0]);
   }
-});
-const promptContent = values['prompt'];
-const submission = await root.submit({ type: "input", content: promptContent }, context);
-const settled = await submission.wait(context);
 
-if (settled.status === "done" && settled.type === "input") {
-  const answer = await root.commit((tx) => tx.entry(AssistantEntry, settled.answer), context);
-  console.log(answer?.model?.[0]);
+  await harness.close(context);
 }
-
-await harness.close(context);

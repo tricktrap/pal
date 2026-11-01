@@ -35,7 +35,7 @@ export class AcpAgent {
     return {
       protocolVersion: acp.PROTOCOL_VERSION,
       agentCapabilities: {
-
+        loadSession: false,
       },
       agentInfo: {
         name: "PAL",
@@ -79,7 +79,6 @@ export class AcpAgent {
     session.pendingPrompt?.abort();
     session.pendingPrompt = new AbortController();
 
-    let submissionId;
     try {
 
       const submission = await session.conversation.submit({
@@ -91,7 +90,7 @@ export class AcpAgent {
       if (settled.type === "input" && settled.status === "done") {
         const answer = await session.conversation.commit((tx) => tx.entry(AssistantEntry, settled.answer), this.context);
 
-        await this.handleModelResponse(cx, answer?.model?.[0]?.content);
+        await this.handleModelResponse(params.sessionId, cx, answer?.model?.[0]?.content);
       }
     } catch (err) {
       if (session.pendingPrompt.signal.aborted) {
@@ -112,103 +111,68 @@ export class AcpAgent {
     this.sessions.get(params.sessionId)?.pendingPrompt?.abort();
   }
 
-  private async handleModelResponse(cx: acp.AgentContext, content: AssistantContent): Promise<void> {
+  private async handleModelResponse(sessionId: string, cx: acp.AgentContext, content: AssistantContent): Promise<void> {
     if (content === undefined) {
-      return this.handleUndefined(cx);
+      return this.handleUndefined(sessionId, cx);
     }
     if (typeof content === "string") {
-      return this.handleString(cx, content);
+      return this.handleString(sessionId, cx, content);
     }
 
     for (const block of content) {
       switch (block.type) {
-        case "text": return this.handleText(cx, block);
-        case "image": return this.handleImage(cx, block);
-        case "thinking": return this.handleThinking(cx, block);
-        case "toolCall": return this.handleToolCall(cx, block);
+        case "text": return this.handleText(sessionId, cx, block);
+        case "image": return this.handleImage(sessionId, cx, block);
+        case "thinking": return this.handleThinking(sessionId, cx, block);
+        case "toolCall": return this.handleToolCall(sessionId, cx, block);
       }
     }
   }
 
-  private async handleUndefined(cx: acp.AgentContext): Promise<void> {
-    // meh
+  private async handleUndefined(_sessionId: string, _cx: acp.AgentContext): Promise<void> {
+
   }
 
-  private async handleString(cx: acp.AgentContext, content: string): Promise<void> {
-    return;
-  }
-
-  private async handleText(cx: acp.AgentContext, content: TextContent): Promise<void> {
+  private async handleString(sessionId: string, cx: acp.AgentContext, content: string): Promise<void> {
     cx.notify(acp.methods.client.session.update, {
-      sessionId: params.sessionId,
+      sessionId,
       update: {
         sessionUpdate: "agent_message_chunk",
-        content:
+        content: {
+          type: "text",
+          text: content
+        }
+      }
+    });
+  }
+
+  private async handleText(sessionId: string, cx: acp.AgentContext, content: TextContent): Promise<void> {
+    cx.notify(acp.methods.client.session.update, {
+      sessionId,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: {
+          type: "text",
+          text: content.text
+        }
       }
     });
     return;
   }
 
-  private async handleImage(cx: acp.AgentContext, content: ImageContent): Promise<void> {
+  private async handleImage(_sessionId: string, _cx: acp.AgentContext, _content: ImageContent): Promise<void> {
+    // todo
     return;
   }
 
-  private async handleThinking(cx: acp.AgentContext, content: ThinkingContent): Promise<void> {
+  private async handleThinking(sessionId: string, cx: acp.AgentContext, content: ThinkingContent): Promise<void> {
+    // todo
     return;
   }
 
-  private async handleToolCall(cx: acp.AgentContext, content: ToolCall): Promise<void> {
+  private async handleToolCall(sessionId: string, cx: acp.AgentContext, content: ToolCall): Promise<void> {
+    // todo
     return;
-  }
-
-
-
-  private toAcpMessage(messages: AssistantMessage[]): SessionUpdate {
-    return {
-      sessionUpdate: "agent_message_chunk",
-      content: messages?.[0]?.content.map((content) => { return this.toAcpContentBlock(content) })
-    }
-  }
-
-  private toAcpContentBlock(content:
-    string | (TextContent | ImageContent)[] | TextContent[] | (TextContent | ThinkingContent | ToolCall)[] | undefined): acp.ContentBlock {
-    if (!content) {
-      return {
-        type: "text",
-        text: "undefined output"
-      };
-    }
-
-    if (typeof content === "string") {
-      return {
-        type: "text",
-        text: content
-      };
-    }
-
-
-    switch (content.type) {
-      case "text":
-        return {
-          type: "text",
-          text: content.text
-        }
-      case "thinking":
-        return {
-          type: "text",
-          text: content.thinking
-        }
-      case "toolCall":
-        return {
-          type: "text",
-          text: `tool call: ${content.name}`
-        }
-      default:
-        return {
-          type: "text",
-          text: "unknown content"
-        }
-    }
   }
 
   private toInternalContentBlock(cb: acp.ContentBlock): TextContent | ImageContent {
