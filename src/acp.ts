@@ -113,18 +113,28 @@ export class AcpAgent {
 
   private async handleModelResponse(sessionId: string, cx: acp.AgentContext, content: AssistantContent): Promise<void> {
     if (content === undefined) {
-      return this.handleUndefined(sessionId, cx);
+      await this.handleUndefined(sessionId, cx);
+      return;
     }
     if (typeof content === "string") {
-      return this.handleString(sessionId, cx, content);
+      await this.handleString(sessionId, cx, content);
+      return;
     }
 
     for (const block of content) {
       switch (block.type) {
-        case "text": return this.handleText(sessionId, cx, block);
-        case "image": return this.handleImage(sessionId, cx, block);
-        case "thinking": return this.handleThinking(sessionId, cx, block);
-        case "toolCall": return this.handleToolCall(sessionId, cx, block);
+        case "text":
+          await this.handleText(sessionId, cx, block);
+          break;
+        case "image":
+          await this.handleImage(sessionId, cx, block);
+          break;
+        case "thinking":
+          await this.handleThinking(sessionId, cx, block);
+          break;
+        case "toolCall":
+          await this.handleToolCall(sessionId, cx, block);
+          break;
       }
     }
   }
@@ -147,7 +157,7 @@ export class AcpAgent {
   }
 
   private async handleText(sessionId: string, cx: acp.AgentContext, content: TextContent): Promise<void> {
-    cx.notify(acp.methods.client.session.update, {
+    await cx.notify(acp.methods.client.session.update, {
       sessionId,
       update: {
         sessionUpdate: "agent_message_chunk",
