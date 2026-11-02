@@ -176,8 +176,17 @@ export class AcpAgent {
   }
 
   private async handleThinking(sessionId: string, cx: acp.AgentContext, content: ThinkingContent): Promise<void> {
-    // todo
-    return;
+    if (!content?.text) return;
+    await cx.notify(acp.methods.client.session.update, {
+      sessionId,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: {
+          type: "text",
+          text: content.text
+        }
+      }
+    });
   }
 
   private async handleToolCall(sessionId: string, cx: acp.AgentContext, content: ToolCall): Promise<void> {
@@ -196,6 +205,12 @@ export class AcpAgent {
         type: "image",
         data: cb.data,
         mimeType: cb.mimeType
+      }
+    } else if (cb.type === "resource_link") {
+      const uri = (cb as any).uri ?? (cb as any).url ?? "";
+      return {
+        type: "text",
+        text: `Resource link: ${uri}`
       }
     } else {
       return {
