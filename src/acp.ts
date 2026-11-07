@@ -176,14 +176,14 @@ export class AcpAgent {
   }
 
   private async handleThinking(sessionId: string, cx: acp.AgentContext, content: ThinkingContent): Promise<void> {
-    if (!content?.text) return;
+    if (!content?.thinking) return;
     await cx.notify(acp.methods.client.session.update, {
       sessionId,
       update: {
         sessionUpdate: "agent_message_chunk",
         content: {
           type: "text",
-          text: content.text
+          text: content.thinking
         }
       }
     });
