@@ -71,8 +71,21 @@ export async function initializeHarness(context: Context): Promise<Harness> {
 
   const harness = Harness.open(
     await openNodeSqliteStorage("./agent.sqlite"),
-    { models, registry, env },
+    {
+      models,
+      registry,
+      env,
+      settings: {
+        compaction: {
+          // past contextWindow - reserveTokens, the next request waits for a summary
+          reserveTokens: 16384,
+          // this far before that, a summary starts in the background
+          backgroundTokens: 32768
+        }
+      }
+    },
     context,
+
   );
   log.debug("harness ready");
   return harness;
