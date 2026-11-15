@@ -2,6 +2,8 @@ import { type Model } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import { createModels, createProvider } from "@earendil-works/pi-ai/models"
 
+import { describeError, log } from "./log.js";
+
 const DEFAULT_LM_STUDIO_URL = "http://127.0.0.1:1234";
 const PROVIDER_PREFIX = "lmstudio";
 
@@ -68,11 +70,15 @@ async function fetchModels(url: string, token?: string): Promise<Model<"openai-c
     const response = await fetch(`${url}/api/v1/models`, { signal: controller.signal, headers });
     if (!response.ok) throw new Error(`LM Studio HTTP status: ${response.status}`);
 
-    const data: LMStudioResponse = await response.json();
-    return (data.models || [])
+    const data = (await response.json()) as LMStudioResponse;
+    const models = (data.models || [])
       .filter(m => m.type == "llm").map(m => mapModel(m, PROVIDER_PREFIX, url));
-  } catch (error: any) {
-    if (error.name === 'AbortError') throw new Error("LM Studio request timed out");
+    log.debug("LM Studio models loaded", { url, count: models.length });
+    return models;
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === "AbortError";
+    log.error("LM Studio model fetch failed", { url, timedOut, err: describeError(error) });
+    if (timedOut) throw new Error("LM Studio request timed out", { cause: error });
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -86,7 +92,7 @@ export async function getLMStudioModels() {
     auth: {
       // apiKey: envApiKeyAuth("LM Studio", ["LMSTUDIO_API_KEY"]),
       apiKey: {
-        name: "LM Studio", resolve: async () => ({
+        name: "LM Studio", resolve: () => Promise.resolve({
           auth: {
             apiKey: "none",
       } }) }
