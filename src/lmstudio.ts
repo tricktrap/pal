@@ -45,7 +45,7 @@ interface LMStudioResponse {
 }
 
 function mapModel(model: LMStudioModel, providerName: string, url: string): Model<"openai-completions"> {
-  return {
+  const result: Model<"openai-completions"> = {
     id: model.key,
     name: model.display_name,
     reasoning: model.capabilities?.reasoning !== undefined,
@@ -56,7 +56,9 @@ function mapModel(model: LMStudioModel, providerName: string, url: string): Mode
     maxTokens: model.max_context_length,
     api: "openai-completions",
     baseUrl: `${url}/v1/`
-  }
+  };
+
+  return result;
 }
 
 async function fetchModels(url: string, token?: string): Promise<Model<"openai-completions">[]> {
@@ -68,11 +70,16 @@ async function fetchModels(url: string, token?: string): Promise<Model<"openai-c
 
   try {
     const response = await fetch(`${url}/api/v1/models`, { signal: controller.signal, headers });
+    console.debug("response:", response);
     if (!response.ok) throw new Error(`LM Studio HTTP status: ${response.status}`);
 
     const data = (await response.json()) as LMStudioResponse;
+    console.debug("data:", data);
     const models = (data.models || [])
       .filter(m => m.type == "llm").map(m => mapModel(m, PROVIDER_PREFIX, url));
+    log.debug("Models", {
+      models: models.map(m => { name: m.name })
+    } );
     log.debug("LM Studio models loaded", { url, count: models.length });
     return models;
   } catch (error) {

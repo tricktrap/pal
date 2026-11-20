@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import { AssistantEntry, type ConversationView } from "@earendil-works/pi-durable";
+import { AssistantEntry } from "@earendil-works/pi-durable";
 
 import { initializeHarness } from "./runtime.js";
 
@@ -8,10 +8,6 @@ import { attachAcpAgent } from "./acp.js";
 import { exit } from "node:process";
 import { describeError, log } from "./log.js";
 import { WaitTimeoutError, withTimeout } from "./wait.js";
-
-function render(_state: ConversationView) {
-  // Provide update on running progress
-}
 
 const { values } = parseArgs({
   options: {
@@ -65,10 +61,10 @@ if (values['acp']) {
     const submission = await root.submit({ type: "input", content: promptContent }, context);
     log.debug("submission admitted", { id: submission.id });
 
-    // Track progress
-    const view = await root.viewState(context);
-    render(view.value);
-    view.subscribe((value) => render(value));
+    // Track progress (later: use watchEvents or something)
+    // const view = await root.viewState(context);
+    // render(view.value);
+    // view.subscribe((value) => render(value));
 
 
     // Bound the wait. On the deadline we report a clean, distinguishable

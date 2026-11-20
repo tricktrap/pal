@@ -2,7 +2,7 @@ import { createRegistry, Harness, defineTool, defineExtension } from "@earendil-
 import { type Context } from "@earendil-works/chord"
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
-import { Type } from "@earendil-works/pi-ai";
+import { obj, str } from "@earendil-works/pi-schema";
 
 
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
@@ -14,7 +14,7 @@ const handoff = defineTool({
   description:
     "Start over from a handoff note. " +
     "Older messages stay serchable with search_history.",
-  parameters: Type.Object({ note: Type.String() }),
+  parameters: obj({ note: str() }),
   execute: async(args, api, context) => {
     // Queued behind the handoff, so it starts the next run in the new context.
     const self = await api.conversation(api.conversationId, context);
@@ -38,7 +38,7 @@ const handoff = defineTool({
 const searchHistory = defineTool({
   name: "search_history",
   description: "Search older messages, including those before a handoff",
-  parameters: Type.Object({ text: Type.String() }),
+  parameters: obj({ text: str() }),
   replay: "safe",
   execute: async (args, api, context) => {
     // Tools read records through a transaction too. One that writes
