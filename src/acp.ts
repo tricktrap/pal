@@ -100,13 +100,14 @@ export class AcpAgent {
       log.warn("superseding in-flight prompt", { method: "session/prompt", sessionId: params.sessionId });
       session.pendingPrompt.abort();
     }
-    session.pendingPrompt = new AbortController();
+    const controller = new AbortController();
+    session.pendingPrompt = controller;
 
     try {
 
       const submission = await session.conversation.submit({
         type: "input",
-        content: params.prompt.map((cb) => this.toInternalContentBlock(cb))
+        content: params.prompt.map((cb) => this.toInternalContentBlock(params.sessionId, cb))
       }, this.context);
       log.debug("submission admitted", { method: "session/prompt", sessionId: params.sessionId, submission: submission.id });
 
@@ -125,7 +126,9 @@ export class AcpAgent {
         await this.handleModelResponse(params.sessionId, cx, answer?.model?.[0]?.content);
       }
     } catch (err) {
-      if (session.pendingPrompt?.signal.aborted) {
+      // Check the controller this prompt installed, not session.pendingPrompt:
+      // a superseding prompt may have replaced it by now.
+      if (controller.signal.aborted) {
         // Cancelled (client cancel or supersession) — a clean stop, not a failure.
         log.warn("prompt cancelled", { method: "session/prompt", sessionId: params.sessionId, err: describeError(err) });
       } else {
@@ -135,7 +138,11 @@ export class AcpAgent {
       throw err;
     }
 
-    session.pendingPrompt = null;
+    // Only clear if we're still the pending prompt — a superseding prompt
+    // may have installed its own controller by now.
+    if (session.pendingPrompt === controller) {
+      session.pendingPrompt = null;
+    }
 
     const response: acp.PromptResponse = { stopReason: "end_turn" };
     log.debug("response sent", {
@@ -247,7 +254,7 @@ export class AcpAgent {
     log.debug("update sent", { sessionId, kind: update.sessionUpdate, bytes: JSON.stringify(notification).length });
   }
 
-  private toInternalContentBlock(cb: acp.ContentBlock): TextContent | ImageContent {
+  private toInternalContentBlock(sessionId: string, cb: acp.ContentBlock): TextContent | ImageContent {
     if (cb.type === "text") {
       return {
         type: "text",
@@ -265,7 +272,7 @@ export class AcpAgent {
         text: `Resource link: ${cb.uri}`
       }
     } else {
-      log.warn("unknown content block from client", { type: cb.type });
+      log.warn("unknown content block from client", { sessionId, type: cb.type });
       return {
         type: "text",
         text: `Unknown content type from ACP bridge: ${cb.type}`,
