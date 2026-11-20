@@ -1,5 +1,5 @@
 import { createRegistry, Harness, defineTool, defineExtension } from "@earendil-works/pi-durable";
-import { type Context } from "@earendil-works/chord"
+import { type Context } from "@earendil-works/chord/context"
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { obj, str } from "@earendil-works/pi-schema";
@@ -50,7 +50,7 @@ const searchHistory = defineTool({
 
     const hits = page.items.filter((entry) => JSON.stringify(entry.model ?? []).includes(args.text));
     const text = hits.map((entry) => JSON.stringify(entry.model)).join("\n");
-    return { content: [{ type: "text", text }] };
+    return { output: [{ type: "text", text }] };
   }
 });
 

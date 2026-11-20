@@ -1,7 +1,6 @@
 import * as acp from "@agentclientprotocol/sdk"
 import type { SessionUpdate } from "@agentclientprotocol/sdk"
-import type { Context } from "@earendil-works/chord";
-import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { BACKGROUND_CONTEXT, type Context } from "@earendil-works/chord/context";
 import type { ImageContent, TextContent, ThinkingContent, ToolCall } from "@earendil-works/pi-ai";
 import type { Conversation, Harness } from "@earendil-works/pi-durable";
 import { AssistantEntry } from "@earendil-works/pi-durable";

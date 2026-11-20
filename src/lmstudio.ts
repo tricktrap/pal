@@ -70,11 +70,9 @@ async function fetchModels(url: string, token?: string): Promise<Model<"openai-c
 
   try {
     const response = await fetch(`${url}/api/v1/models`, { signal: controller.signal, headers });
-    console.debug("response:", response);
     if (!response.ok) throw new Error(`LM Studio HTTP status: ${response.status}`);
 
     const data = (await response.json()) as LMStudioResponse;
-    console.debug("data:", data);
     const models = (data.models || [])
       .filter(m => m.type == "llm").map(m => mapModel(m, PROVIDER_PREFIX, url));
     log.debug("Models", {

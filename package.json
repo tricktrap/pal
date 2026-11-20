@@ -31,8 +31,8 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^2.0.2",
-    "@earendil-works/chord": "^1.1.0",
-    "@earendil-works/pi-ai": "^1.1.0",
-    "@earendil-works/pi-durable": "^1.1.0"
+    "@earendil-works/chord": "^1.6.0",
+    "@earendil-works/pi-ai": "^1.6.0",
+    "@earendil-works/pi-durable": "^1.5.2"
   }
 }
