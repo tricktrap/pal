@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import { AssistantEntry } from "@earendil-works/pi-durable";
+import { AssistantEntry, type LiveState } from "@earendil-works/pi-durable";
 
 import { initializeHarness } from "./runtime.js";
 
@@ -53,10 +53,31 @@ if (values['acp']) {
   try {
     const root = await harness.root(context, {
       agent: {
-        model: { provider: "lmstudio", modelId: "qwen/qwen3.8-27b" },
+        model: { provider: "lmstudio", modelId: "thinkingmachines/inkling-2-mini" },
         cwd: import.meta.dirname,
       }
     });
+
+    const view = await root.watch(context);
+    const live = view.value.docs["pi.live"] as LiveState;
+    console.log("view entries:", view.value.entries.map((entry) => entry.kind));
+    console.log("view tool slot:", live.tools?.[0]?.status, JSON.stringify(live.tools?.[0]?.output));
+    let shown = "";
+    view.start(async (call) => {
+      if (call.kind !== "value") return;
+      const { value } = call;
+      const state = value.docs["pi.live"] as LiveState;
+      const slot = state.tools?.[0];
+      if (slot?.status === "running") console.log("view output now:", JSON.stringify(slot.output));
+      const partial = state.generation?.message?.content.find((block) => block.type === "text")?.text ?? "";
+      if (partial !== shown && partial !== "") console.log("view answer now:", JSON.stringify(prtial));
+      shown = partial;
+      if (state.run === undefined)
+        console.log("view entries:",
+          value.entries.map((entry) => entry.kind),
+        );
+    });
+
     const promptContent = values['prompt'];
     const submission = await root.submit({ type: "input", content: promptContent }, context);
     log.debug("submission admitted", { id: submission.id });
@@ -100,6 +121,8 @@ if (values['acp']) {
       console.log(answer?.model?.[0]);
     }
 
+    await harness.waitForIdle(context);
+    await view.stop();
     await harness.close(context);
   } catch (err) {
     log.error("prompt run failed", { err: describeError(err) });

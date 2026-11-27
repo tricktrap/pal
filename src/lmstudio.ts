@@ -76,7 +76,7 @@ async function fetchModels(url: string, token?: string): Promise<Model<"openai-c
     const models = (data.models || [])
       .filter(m => m.type == "llm").map(m => mapModel(m, PROVIDER_PREFIX, url));
     log.debug("Models", {
-      models: models.map(m => { name: m.name })
+      models: models.map(m => { return { name: m.name } })
     } );
     log.debug("LM Studio models loaded", { url, count: models.length });
     return models;

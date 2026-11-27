@@ -67,7 +67,7 @@ export async function initializeHarness(context: Context): Promise<Harness> {
 
   const registry = createRegistry();
   registry.install(CodingTools); // read, write, edit, bash
-  registry.install(History);
+  // registry.install(History);
 
   const harness = Harness.open(
     await openNodeSqliteStorage("./agent.sqlite"),
@@ -76,12 +76,12 @@ export async function initializeHarness(context: Context): Promise<Harness> {
       registry,
       env,
       settings: {
-        compaction: {
-          // past contextWindow - reserveTokens, the next request waits for a summary
-          reserveTokens: 16384,
-          // this far before that, a summary starts in the background
-          backgroundTokens: 32768
-        }
+        // compaction: {
+        //   // past contextWindow - reserveTokens, the next request waits for a summary
+        //   reserveTokens: 16384,
+        //   // this far before that, a summary starts in the background
+        //   backgroundTokens: 32768
+        // }
       }
     },
     context,
