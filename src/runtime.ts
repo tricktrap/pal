@@ -3,6 +3,7 @@ import { type Context } from "@earendil-works/chord/context"
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { obj, str } from "@earendil-works/pi-schema";
+import { InMemoryTelemetryContext } from "@earendil-works/pi-telemetry";
 
 
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
@@ -59,7 +60,7 @@ const History = defineExtension({
   tools: [handoff, searchHistory]
 });
 
-export async function initializeHarness(context: Context): Promise<Harness> {
+export async function initializeHarness(context: Context, telemetry: InMemoryTelemetryContext = new InMemoryTelemetryContext()): Promise<Harness> {
   log.debug("initializing harness", { storage: "./agent.sqlite" });
   const models = await getLMStudioModels();
   const env = ({ cwd }: { cwd?: string }) =>
@@ -75,6 +76,7 @@ export async function initializeHarness(context: Context): Promise<Harness> {
       models,
       registry,
       env,
+      telemetry,
       settings: {
         // compaction: {
         //   // past contextWindow - reserveTokens, the next request waits for a summary

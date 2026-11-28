@@ -1,11 +1,13 @@
+import { exit } from "node:process";
+
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { AssistantEntry, type LiveState } from "@earendil-works/pi-durable";
+import { InMemoryTelemetryContext } from "@earendil-works/pi-telemetry";
+import { renderTrace } from "@earendil-works/pi-telemetry/render";
 
 import { initializeHarness } from "./runtime.js";
-
 import { parseArgs } from 'node:util';
 import { attachAcpAgent } from "./acp.js";
-import { exit } from "node:process";
 import { describeError, log } from "./log.js";
 import { WaitTimeoutError, withTimeout } from "./wait.js";
 
@@ -30,10 +32,11 @@ if (values['acp']) {
 }
 
 const context = BACKGROUND_CONTEXT;
+const telemetry = new InMemoryTelemetryContext();
 
 const harness = await (async () => {
   try {
-    return await initializeHarness(context);
+    return await initializeHarness(context, telemetry);
   } catch (err) {
     log.error("harness initialization failed", { err: describeError(err) });
     exit(1);
@@ -44,16 +47,19 @@ if (values['acp']) {
   log.info("initializing in ACP mode");
   attachAcpAgent(harness, context);
 } else if (values['prompt']) {
+
   log.info("running prompt", { chars: String(values['prompt']).length });
   // Deadline for the whole prompt. The root conversation is shared, so a
   // prompt can queue behind another live session, or the model can stall;
   // without a deadline `submission.wait()` hangs forever. Raise for long
   // prompts, lower for fail-fast.
   const timeoutMs = Number(process.env.PROMPT_TIMEOUT_MS ?? 120_000);
+  // const modelId = "qwen/qwen3.8-27b";
+  const modelId = "thinkingmachines/inkling-2-mini";
   try {
     const root = await harness.root(context, {
       agent: {
-        model: { provider: "lmstudio", modelId: "thinkingmachines/inkling-2-mini" },
+        model: { provider: "lmstudio", modelId: modelId },
         cwd: import.meta.dirname,
       }
     });
@@ -70,7 +76,7 @@ if (values['acp']) {
       const slot = state.tools?.[0];
       if (slot?.status === "running") console.log("view output now:", JSON.stringify(slot.output));
       const partial = state.generation?.message?.content.find((block) => block.type === "text")?.text ?? "";
-      if (partial !== shown && partial !== "") console.log("view answer now:", JSON.stringify(prtial));
+      if (partial !== shown && partial !== "") console.log("view answer now:", JSON.stringify(partial));
       shown = partial;
       if (state.run === undefined)
         console.log("view entries:",
@@ -122,6 +128,10 @@ if (values['acp']) {
     }
 
     await harness.waitForIdle(context);
+
+    for (const trace of (await telemetry.findTraces({ limit: 10 })).traces) {
+      console.log(renderTrace(trace.spans));
+    }
     await view.stop();
     await harness.close(context);
   } catch (err) {
